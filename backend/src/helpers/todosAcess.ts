@@ -13,7 +13,8 @@ export class TodosAccess {
     constructor(
         private readonly docClient: DocumentClient = new XAWS.DynamoDB.DocumentClient(),
         private readonly todosTable = process.env.TODOS_TABLE,
-        private readonly todosByUserIndex = process.env.CREATED_AT_INDEX) {
+        private readonly todosByUserIndex = process.env.CREATED_AT_INDEX,
+        private readonly bucketName = process.env.ATTACHMENT_S3_BUCKET) {
     }
 
     async getTodo(userId: string, todoId: string): Promise<TodoItem> {
@@ -89,7 +90,8 @@ export class TodosAccess {
                 ":name": todoUpdate['name'],
                 ":dueDate": todoUpdate['dueDate'],
                 ":done": todoUpdate['done']
-            }
+            },
+            ReturnValues: "UPDATED_NEW"
         }
 
         await this.docClient.update(params).promise();
@@ -111,22 +113,23 @@ export class TodosAccess {
         await this.docClient.delete(params).promise()
     }
 
-    async updateAttachmentURL(userId: string, todoId: string, url: string) {
-        logger.info(`adding Attachment URL ${url} to Todo ${todoId}`)
-
+    async updateAttachmentURL(todoId: string, userId: string) {
+        logger.info(`adding Attachment URL with userId ${userId} to Todo ${todoId}`)
+        const attachmentUrl = `https://${this.bucketName}.s3.amazonaws.com/${todoId}`;
         const updateParams = {
             TableName: this.todosTable,
             Key: {
-                userId,
-                todoId
+                userId: userId,
+                todoId: todoId
             },
             UpdateExpression: 'set attachmentUrl = :attachmentUrl',
             ExpressionAttributeValues: {
-                ':attachmentUrl': url
-            }
+                ':attachmentUrl': attachmentUrl
+            },
+            ReturnValues: "UPDATED_NEW"
         }
         await this.docClient.update(updateParams).promise()
 
-        logger.info(`Attachment URL ${url} was added to Todo ${todoId}`)
+        logger.info(`Attachment URL ${attachmentUrl} was added to Todo ${todoId}`)
     }
 }
